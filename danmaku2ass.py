@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# coding: utf-8
 
 # The original author of this program, Danmaku2ASS, is StarBrilliant.
 # This file is released under General Public License version 3.
@@ -10,6 +11,9 @@
 # You can obtain a latest copy of Danmaku2ASS at:
 #   https://github.com/m13253/danmaku2ass
 # Please update to the latest version before complaining.
+
+# python -m pip install --upgrade pip
+# pip install emoji --upgrade
 
 import argparse
 import calendar
@@ -24,7 +28,10 @@ import re
 import sys
 import time
 import xml.dom.minidom
-
+import unicodedata
+import emoji
+import tkinter 
+from tkinter import font as tkFont
 
 if sys.version_info < (3,):
     raise RuntimeError('at least Python 3.0 is required')
@@ -88,6 +95,25 @@ def ProbeCommentFormat(f):
             return 'Niconico'  # Himawari Douga, with the same file format as Niconico Douga
 
 
+def is_japanese(string):
+    string = re.sub('\s','',string)
+    for ch in string:
+        name = unicodedata.name(ch) 
+        if "CJK UNIFIED" in name \
+        or "HIRAGANA" in name \
+        or "KATAKANA" in name:
+            return True
+    return False
+
+
+def is_emoji(string):
+    string = re.sub('\s','',string)
+    for ch in string:
+        if ch in emoji.UNICODE_EMOJI:
+            return True
+    return False
+
+
 #
 # ReadComments**** protocol
 #
@@ -117,14 +143,13 @@ def ProbeCommentFormat(f):
 # After implementing ReadComments****, make sure to update ProbeCommentFormat
 # and CommentFormatMap.
 #
-
-
-def ReadCommentsNiconico(f, fontsize):
+def ReadCommentsNiconico(f, fontsize, stage_width, stage_height, font_face):
     NiconicoColorMap = {'red': 0xff0000, 'pink': 0xff8080, 'orange': 0xffcc00, 'yellow': 0xffff00, 'green': 0x00ff00, 'cyan': 0x00ffff, 'blue': 0x0000ff, 'purple': 0xc000ff, 'black': 0x000000, 'niconicowhite': 0xcccc99, 'white2': 0xcccc99, 'truered': 0xcc0033, 'red2': 0xcc0033, 'passionorange': 0xff6600, 'orange2': 0xff6600, 'madyellow': 0x999900, 'yellow2': 0x999900, 'elementalgreen': 0x00cc66, 'green2': 0x00cc66, 'marineblue': 0x33ffcc, 'blue2': 0x33ffcc, 'nobleviolet': 0x6633cc, 'purple2': 0x6633cc}
     dom = xml.dom.minidom.parse(f)
     comment_element = dom.getElementsByTagName('chat')
     for comment in comment_element:
         try:
+            format_name = font_face
             c = str(comment.childNodes[0].wholeText)
             if c.startswith('/'):
                 continue  # ignore advanced comments
@@ -142,13 +167,60 @@ def ReadCommentsNiconico(f, fontsize):
                     size = fontsize * 0.64
                 elif mailstyle in NiconicoColorMap:
                     color = NiconicoColorMap[mailstyle]
-            yield (max(int(comment.getAttribute('vpos')), 0) * 0.01, int(comment.getAttribute('date')), int(comment.getAttribute('no')), c, pos, color, size, (c.count('\n') + 1) * size, CalculateLength(c) * size)
+            yield (max(int(comment.getAttribute('vpos')), 0) * 0.01, int(comment.getAttribute('date')), int(comment.getAttribute('no')), c, pos, color, size, (c.count('\n') + 1) * size, CalculateLength(c) * size, format_name)
+        except (AssertionError, AttributeError, IndexError, TypeError, ValueError):
+            logging.warning(_('Invalid comment: %s') % comment.toxml())
+            continue
+
+            
+def ReadCommentsNiconicoHtml5(f, fontsize, stage_width, stage_height, font_face):
+    NiconicoColorMap = {'red': 0xff0000, 'pink': 0xff8080, 'orange': 0xffcc00, 'yellow': 0xffff00, 'green': 0x00ff00, 'cyan': 0x00ffff, 'blue': 0x0000ff, 'purple': 0xc000ff, 'black': 0x000000, 'niconicowhite': 0xcccc99, 'white2': 0xcccc99, 'truered': 0xcc0033, 'red2': 0xcc0033, 'passionorange': 0xff6600, 'orange2': 0xff6600, 'madyellow': 0x999900, 'yellow2': 0x999900, 'elementalgreen': 0x00cc66, 'green2': 0x00cc66, 'marineblue': 0x33ffcc, 'blue2': 0x33ffcc, 'nobleviolet': 0x6633cc, 'purple2': 0x6633cc}
+    dom = xml.dom.minidom.parse(f)
+    comment_element = dom.getElementsByTagName('chat')
+    for comment in comment_element:
+        try:
+            c = str(comment.childNodes[0].wholeText)
+            if c.startswith('/'):
+                continue  # ignore advanced comments
+            pos = 0
+            color = 0xffffff
+            if (is_japanese(c)) :
+                format_name = font_face
+            elif(is_emoji(c)) :
+                format_name = 'Arial' # or 'Segoe UI Emoji'
+            else :
+                format_name = 'Arial'
+            size = stage_width / 25.2631578947368421 # May not be accurate. 
+            fontdimension = 'medium'
+            for mailstyle in reversed(str(comment.getAttribute('mail')).split()):
+                if mailstyle == 'ue':
+                    pos = 1
+                elif mailstyle == 'shita':
+                    pos = 2
+                elif mailstyle == 'big':
+                    fontdimension = 'big'
+                    size = stage_width / 17.142857142857142857 # May not be accurate.
+                elif mailstyle == 'small':
+                    fontdimension = 'small'
+                    size = stage_width / 36.923076923076923 # May not be accurate.
+                elif mailstyle in NiconicoColorMap:
+                    color = NiconicoColorMap[mailstyle]
+                elif mailstyle == 'gothic':
+                    format_name = 'MS Gothic'
+                elif mailstyle == 'mincho':
+                    format_name = 'Mincho'
+                #May not be accurate.
+                tkinter.Frame().destroy()  # Enough to initialize resources
+                while((tkFont.Font(family = format_name, size = int(size)).measure(c) > stage_width)and (pos != 0)):
+                    size = size - 1
+                    tkinter.Frame().destroy()
+            yield (max(int(comment.getAttribute('vpos')), 0) * 0.01, int(comment.getAttribute('date')), int(comment.getAttribute('no')), c, pos, color, size, (c.count('\n') + 1.3) * size, CalculateLength(c) * size, format_name)
         except (AssertionError, AttributeError, IndexError, TypeError, ValueError):
             logging.warning(_('Invalid comment: %s') % comment.toxml())
             continue
 
 
-def ReadCommentsAcfun(f, fontsize):
+def ReadCommentsAcfun(f, ffontsize, stage_width, stage_height, font_face):
     #comment_element = json.load(f)
     # after load acfun comment json file as python list, flatten the list
     #comment_element = [c for sublist in comment_element for c in sublist]
@@ -156,37 +228,39 @@ def ReadCommentsAcfun(f, fontsize):
     comment_element = comment_elements[2]
     for i, comment in enumerate(comment_element):
         try:
+            format_name = font_face
             p = str(comment['c']).split(',')
             assert len(p) >= 6
             assert p[2] in ('1', '2', '4', '5', '7')
             size = int(p[3]) * fontsize / 25.0
             if p[2] != '7':
                 c = str(comment['m']).replace('\\r', '\n').replace('\r', '\n')
-                yield (float(p[0]), int(p[5]), i, c, {'1': 0, '2': 0, '4': 2, '5': 1}[p[2]], int(p[1]), size, (c.count('\n') + 1) * size, CalculateLength(c) * size)
+                yield (float(p[0]), int(p[5]), i, c, {'1': 0, '2': 0, '4': 2, '5': 1}[p[2]], int(p[1]), size, (c.count('\n') + 1) * size, CalculateLength(c) * size, format_name)
             else:
                 c = dict(json.loads(comment['m']))
-                yield (float(p[0]), int(p[5]), i, c, 'acfunpos', int(p[1]), size, 0, 0)
+                yield (float(p[0]), int(p[5]), i, c, 'acfunpos', int(p[1]), size, 0, 0, format_name)
         except (AssertionError, AttributeError, IndexError, TypeError, ValueError):
             logging.warning(_('Invalid comment: %r') % comment)
             continue
 
 
-def ReadCommentsBilibili(f, fontsize):
+def ReadCommentsBilibili(f, fontsize, stage_width, stage_height, font_face):
     dom = xml.dom.minidom.parse(f)
     comment_element = dom.getElementsByTagName('d')
     for i, comment in enumerate(comment_element):
         try:
+            format_name = font_face
             p = str(comment.getAttribute('p')).split(',')
             assert len(p) >= 5
             assert p[1] in ('1', '4', '5', '6', '7', '8')
             if comment.childNodes.length > 0:
                 if p[1] in ('1', '4', '5', '6'):
                     c = str(comment.childNodes[0].wholeText).replace('/n', '\n')
-                    size = int(p[2]) * fontsize / 25.0
-                    yield (float(p[0]), int(p[4]), i, c, {'1': 0, '4': 2, '5': 1, '6': 3}[p[1]], int(p[3]), size, (c.count('\n') + 1) * size, CalculateLength(c) * size)
+                    size = float(p[2]) * fontsize / 25.0
+                    yield (float(p[0]), int(p[4]), i, c, {'1': 0, '4': 2, '5': 1, '6': 3}[p[1]], int(p[3]), size, (c.count('\n') + 1) * size, CalculateLength(c) * size, format_name)
                 elif p[1] == '7':  # positioned comment
                     c = str(comment.childNodes[0].wholeText)
-                    yield (float(p[0]), int(p[4]), i, c, 'bilipos', int(p[3]), int(p[2]), 0, 0)
+                    yield (float(p[0]), int(p[4]), i, c, 'bilipos', int(p[3]), int(p[2]), 0, 0, format_name)
                 elif p[1] == '8':
                     pass  # ignore scripted comment
         except (AssertionError, AttributeError, IndexError, TypeError, ValueError):
@@ -194,24 +268,26 @@ def ReadCommentsBilibili(f, fontsize):
             continue
 
 
-def ReadCommentsTudou(f, fontsize):
+def ReadCommentsTudou(f, fontsize, stage_width, stage_height, font_face):
     comment_element = json.load(f)
     for i, comment in enumerate(comment_element['comment_list']):
         try:
+            format_name = font_face
             assert comment['pos'] in (3, 4, 6)
             c = str(comment['data'])
             assert comment['size'] in (0, 1, 2)
             size = {0: 0.64, 1: 1, 2: 1.44}[comment['size']] * fontsize
-            yield (int(comment['replay_time'] * 0.001), int(comment['commit_time']), i, c, {3: 0, 4: 2, 6: 1}[comment['pos']], int(comment['color']), size, (c.count('\n') + 1) * size, CalculateLength(c) * size)
+            yield (int(comment['replay_time'] * 0.001), int(comment['commit_time']), i, c, {3: 0, 4: 2, 6: 1}[comment['pos']], int(comment['color']), size, (c.count('\n') + 1) * size, CalculateLength(c) * size, format_name)
         except (AssertionError, AttributeError, IndexError, TypeError, ValueError):
             logging.warning(_('Invalid comment: %r') % comment)
             continue
 
 
-def ReadCommentsTudou2(f, fontsize):
+def ReadCommentsTudou2(f, fontsize, stage_width, stage_height, font_face):
     comment_element = json.load(f)
     for i, comment in enumerate(comment_element['result']):
         try:
+            format_name = font_face
             c = str(comment['content'])
             prop = json.loads(str(comment['propertis']) or '{}')
             size = int(prop.get('size', 1))
@@ -222,29 +298,30 @@ def ReadCommentsTudou2(f, fontsize):
             yield (
                 int(comment['playat'] * 0.001), int(comment['createtime'] * 0.001), i, c,
                 {0: 0, 3: 0, 4: 2, 6: 1}[pos],
-                int(prop.get('color', 0xffffff)), size, (c.count('\n') + 1) * size, CalculateLength(c) * size)
+                int(prop.get('color', 0xffffff)), size, (c.count('\n') + 1) * size, CalculateLength(c) * size, format_name)
         except (AssertionError, AttributeError, IndexError, TypeError, ValueError):
             logging.warning(_('Invalid comment: %r') % comment)
             continue
 
 
-def ReadCommentsMioMio(f, fontsize):
+def ReadCommentsMioMio(f, fontsize, stage_width, stage_height, font_face):
     NiconicoColorMap = {'red': 0xff0000, 'pink': 0xff8080, 'orange': 0xffc000, 'yellow': 0xffff00, 'green': 0x00ff00, 'cyan': 0x00ffff, 'blue': 0x0000ff, 'purple': 0xc000ff, 'black': 0x000000}
     dom = xml.dom.minidom.parse(f)
     comment_element = dom.getElementsByTagName('data')
     for i, comment in enumerate(comment_element):
         try:
+            format_name = font_face
             message = comment.getElementsByTagName('message')[0]
             c = str(message.childNodes[0].wholeText)
             pos = 0
-            size = int(message.getAttribute('fontsize')) * fontsize / 25.0
-            yield (float(comment.getElementsByTagName('playTime')[0].childNodes[0].wholeText), int(calendar.timegm(time.strptime(comment.getElementsByTagName('times')[0].childNodes[0].wholeText, '%Y-%m-%d %H:%M:%S'))) - 28800, i, c, {'1': 0, '4': 2, '5': 1}[message.getAttribute('mode')], int(message.getAttribute('color')), size, (c.count('\n') + 1) * size, CalculateLength(c) * size)
+            size = float(message.getAttribute('fontsize')) * fontsize / 25.0
+            yield (float(comment.getElementsByTagName('playTime')[0].childNodes[0].wholeText), int(calendar.timegm(time.strptime(comment.getElementsByTagName('times')[0].childNodes[0].wholeText, '%Y-%m-%d %H:%M:%S'))) - 28800, i, c, {'1': 0, '4': 2, '5': 1}[message.getAttribute('mode')], int(message.getAttribute('color')), size, (c.count('\n') + 1) * size, CalculateLength(c) * size, format_name)
         except (AssertionError, AttributeError, IndexError, TypeError, ValueError):
             logging.warning(_('Invalid comment: %s') % comment.toxml())
             continue
 
 
-CommentFormatMap = {'Niconico': ReadCommentsNiconico, 'Acfun': ReadCommentsAcfun, 'Bilibili': ReadCommentsBilibili, 'Tudou': ReadCommentsTudou, 'Tudou2': ReadCommentsTudou2, 'MioMio': ReadCommentsMioMio}
+CommentFormatMap = {'Niconico': ReadCommentsNiconico, 'NiconicoHtml5': ReadCommentsNiconicoHtml5, 'Acfun': ReadCommentsAcfun, 'Bilibili': ReadCommentsBilibili, 'Tudou': ReadCommentsTudou, 'Tudou2': ReadCommentsTudou2, 'MioMio': ReadCommentsMioMio}
 
 
 def WriteCommentBilibiliPositioned(f, c, width, height, styleid):
@@ -321,7 +398,7 @@ def WriteCommentBilibiliPositioned(f, c, width, height, styleid):
             styles.append('\\fade(%(from_alpha)d, %(to_alpha)d, %(to_alpha)d, 0, %(end_time).0f, %(end_time).0f, %(end_time).0f)' % {'from_alpha': from_alpha, 'to_alpha': to_alpha, 'end_time': lifetime * 1000})
         if isborder == 'false':
             styles.append('\\bord0')
-        f.write('Dialogue: -1,%(start)s,%(end)s,%(styleid)s,,0,0,0,,{%(styles)s}%(text)s\n' % {'start': ConvertTimestamp(c[0]), 'end': ConvertTimestamp(c[0] + lifetime), 'styles': ''.join(styles), 'text': text, 'styleid': styleid})
+        f.write('Dialogue: -1,%(start)s,%(end)s,%(styleid)s,,0,0,0,,{%(styles)s}%(text)s\u200C\n' % {'start': ConvertTimestamp(c[0]), 'end': ConvertTimestamp(c[0] + lifetime), 'styles': ''.join(styles), 'text': text, 'styleid': styleid})
     except (IndexError, ValueError) as e:
         try:
             logging.warning(_('Invalid comment: %r') % c[3])
@@ -366,7 +443,7 @@ def WriteCommentAcfunPositioned(f, c, width, height, styleid):
 
     def FlushCommentLine(f, text, styles, start_time, end_time, styleid):
         if end_time > start_time:
-            f.write('Dialogue: -1,%(start)s,%(end)s,%(styleid)s,,0,0,0,,{%(styles)s}%(text)s\n' % {'start': ConvertTimestamp(start_time), 'end': ConvertTimestamp(end_time), 'styles': ''.join(styles), 'text': text, 'styleid': styleid})
+            f.write('Dialogue: -1,%(start)s,%(end)s,%(styleid)s,,0,0,0,,{%(styles)s}%(text)s\u200C\n' % {'start': ConvertTimestamp(start_time), 'end': ConvertTimestamp(end_time), 'styles': ''.join(styles), 'text': text, 'styleid': styleid})
 
     try:
         comment_args = c[3]
@@ -511,10 +588,11 @@ def ConvertFlashRotation(rotY, rotZ, X, Y, width, height):
         logging.error('Rotation makes object behind the camera: trZ == %.0f < %.0f' % (trZ, FOV))
     return (trX, trY, WrapAngle(outX), WrapAngle(outY), WrapAngle(outZ), scaleXY * 100, scaleXY * 100)
 
+def ProcessComments(comments, f, width, height, bottomReserved, fontface, fontsize, alpha, duration_marquee, duration_still, bold, borderstyle, outline, shadow, filter_regex, reduced, progress_callback):
 
-def ProcessComments(comments, f, width, height, bottomReserved, fontface, fontsize, alpha, duration_marquee, duration_still, filter_regex, reduced, progress_callback):
-    styleid = 'Danmaku2ASS_%04x' % random.randint(0, 0xffff)
-    WriteASSHead(f, width, height, fontface, fontsize, alpha, styleid)
+    #styleid = 'Danmaku2ASS_%04x' % random.randint(0, 0xffff)
+    styleid = 'Danmaku2ASS_'+fontface
+    WriteASSHead(f, width, height, fontface, fontsize, alpha, styleid, bold, borderstyle, outline, shadow)
     rows = [[None] * (height - bottomReserved + 1) for i in range(4)]
     for idx, i in enumerate(comments):
         if progress_callback and idx % 1000 == 0:
@@ -595,7 +673,8 @@ def MarkCommentRow(rows, c, row):
         pass
 
 
-def WriteASSHead(f, width, height, fontface, fontsize, alpha, styleid):
+def WriteASSHead(f, width, height, fontface, fontsize, alpha, styleid, bold, borderstyle, outline, shadow ):
+
     f.write(
         '''[Script Info]
 ; Script generated by Danmaku2ASS
@@ -612,22 +691,28 @@ YCbCr Matrix: TV.601
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: %(styleid)s, %(fontface)s, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, 0, 0, 0, 0, 100, 100, 0.00, 0.00, 1, %(outline).0f, 0, 7, 0, 0, 0, 0
+''' % {'width': width, 'height': height }
+    )
+    f.write(
 
+        '''Style: %(styleid)s, %(fontface)s, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, %(bold)s, 0, 0, 0, 100, 100, 0.00, 0.00, %(borderstyle)s, %(outline).1f, %(shadow).1f, 7, 0, 0, 0, 0
+Style: Danmaku2ASS_MS Gothic, MS Gothic, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, %(bold)s, 0, 0, 0, 100, 100, 0.00, 0.00, %(borderstyle)s, %(outline).1f, %(shadow).1f, 7, 0, 0, 0, 0
+Style: Danmaku2ASS_Mincho, Mincho, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, %(bold)s, 0, 0, 0, 100, 100, 0.00, 0.00, %(borderstyle)s, %(outline).1f, %(shadow).1f, 7, 0, 0, 0, 0
+Style: Danmaku2ASS_Arial, Arial, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, %(bold)s, 0, 0, 0, 100, 100, 0.00, 0.00, %(borderstyle)s, %(outline).1f, %(shadow).1f, 7, 0, 0, 0, 0
+Style: Danmaku2ASS_Segoe UI Emoji, Segoe UI Emoji, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, %(bold)s, 0, 0, 0, 100, 100, 0.00, 0.00, %(borderstyle)s, %(outline).1f, %(shadow).1f, 7, 0, 0, 0, 0
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-''' % {'width': width, 'height': height, 'fontface': fontface, 'fontsize': fontsize, 'alpha': 255 - round(alpha * 255), 'outline': max(fontsize / 25.0, 1), 'styleid': styleid}
+''' % {'width': width, 'height': height, 'fontface': fontface, 'fontsize': fontsize, 'alpha': 255 - round(alpha * 255), 'outline': max(fontsize / 25.0, 1), 'styleid': styleid, 'bold': bold, 'borderstyle': borderstyle, 'outline':outline, 'shadow':shadow }
     )
-
 
 def WriteComment(f, c, row, width, height, bottomReserved, fontsize, duration_marquee, duration_still, styleid):
     text = ASSEscape(c[3])
     styles = []
     if c[4] == 1:
-        styles.append('\\an8\\pos(%(halfwidth)d, %(row)d)' % {'halfwidth': width / 2, 'row': row})
+        styles.append('\\an8\\pos(%(halfwidth)d, %(row)d)' % {'halfwidth': width / 2.0, 'row': row})
         duration = duration_still
     elif c[4] == 2:
-        styles.append('\\an2\\pos(%(halfwidth)d, %(row)d)' % {'halfwidth': width / 2, 'row': ConvertType2(row, height, bottomReserved)})
+        styles.append('\\an2\\pos(%(halfwidth)d, %(row)d)' % {'halfwidth': width / 2.0, 'row': ConvertType2(row, height, bottomReserved)})
         duration = duration_still
     elif c[4] == 3:
         styles.append('\\move(%(neglen)d, %(row)d, %(width)d, %(row)d)' % {'width': width, 'row': row, 'neglen': -math.ceil(c[8])})
@@ -641,7 +726,9 @@ def WriteComment(f, c, row, width, height, bottomReserved, fontsize, duration_ma
         styles.append('\\c&H%s&' % ConvertColor(c[5]))
         if c[5] == 0x000000:
             styles.append('\\3c&HFFFFFF&')
-    f.write('Dialogue: 2,%(start)s,%(end)s,%(styleid)s,,0000,0000,0000,,{%(styles)s}%(text)s\n' % {'start': ConvertTimestamp(c[0]), 'end': ConvertTimestamp(c[0] + duration), 'styles': ''.join(styles), 'text': text, 'styleid': styleid})
+    styleid = 'Danmaku2ASS_'+c[9]	
+#add, zero width non-joiner, \u200C
+    f.write('Dialogue: 2,%(start)s,%(end)s,%(styleid)s,,0000,0000,0000,,{%(styles)s}\u200C%(text)s\u200C\n' % {'start': ConvertTimestamp(c[0]), 'end': ConvertTimestamp(c[0] + duration), 'styles': ''.join(styles), 'text': text, 'styleid': styleid})
 
 
 def ASSEscape(s):
@@ -653,8 +740,8 @@ def ASSEscape(s):
         else:
             llen = slen - len(s.lstrip(' '))
             rlen = slen - len(s.rstrip(' '))
-            return ''.join(('\u2007' * llen, sstrip, '\u2007' * rlen))
-    return '\\N'.join((ReplaceLeadingSpace(i) or ' ' for i in str(s).replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}').split('\n')))
+            return ''.join(('\u0020' * llen, sstrip, '\u0020' * rlen))
+    return '\\N'.join((ReplaceLeadingSpace(i) or ' ' for i in str(s).split('\n')))
 
 
 def CalculateLength(s):
@@ -726,7 +813,7 @@ def export(func):
 
 
 @export
-def Danmaku2ASS(input_files, input_format, output_file, stage_width, stage_height, reserve_blank=0, font_face=_('(FONT) sans-serif')[7:], font_size=25.0, text_opacity=1.0, duration_marquee=5.0, duration_still=5.0, comment_filter=None, is_reduce_comments=False, progress_callback=None):
+def Danmaku2ASS(input_files, input_format, output_file, stage_width, stage_height, reserve_blank=0, font_face=_('(FONT) sans-serif')[7:], font_size=25.0, text_opacity=1.0, duration_marquee=5.0, duration_still=5.0, bold=0, borderstyle=1, outline=1, shadow=0, comment_filter=None, is_reduce_comments=False, progress_callback=None):
     try:
         if comment_filter:
             filter_regex = re.compile(comment_filter)
@@ -735,20 +822,19 @@ def Danmaku2ASS(input_files, input_format, output_file, stage_width, stage_heigh
     except:
         raise ValueError(_('Invalid regular expression: %s') % comment_filter)
     fo = None
-    comments = ReadComments(input_files, input_format, font_size)
+    comments = ReadComments(input_files, input_format, font_size, stage_width, stage_height, font_face)
     try:
         if output_file:
             fo = ConvertToFile(output_file, 'w', encoding='utf-8-sig', errors='replace', newline='\r\n')
         else:
             fo = sys.stdout
-        ProcessComments(comments, fo, stage_width, stage_height, reserve_blank, font_face, font_size, text_opacity, duration_marquee, duration_still, filter_regex, is_reduce_comments, progress_callback)
+        ProcessComments(comments, fo, stage_width, stage_height, reserve_blank, font_face, font_size, text_opacity, duration_marquee, duration_still, bold, borderstyle, outline, shadow,filter_regex, is_reduce_comments, progress_callback)
     finally:
         if output_file and fo != output_file:
             fo.close()
 
-
 @export
-def ReadComments(input_files, input_format, font_size=25.0, progress_callback=None):
+def ReadComments(input_files, input_format, font_size,  stage_width, stage_height, font_face, progress_callback=None):
     if isinstance(input_files, bytes):
         input_files = str(bytes(input_files).decode('utf-8', 'replace'))
     if isinstance(input_files, str):
@@ -774,7 +860,7 @@ def ReadComments(input_files, input_format, font_size=25.0, progress_callback=No
                     raise ValueError(
                         _('Unknown comment file format: %s') % input_format
                     )
-            comments.extend(CommentProcessor(FilterBadChars(str_io), font_size))
+            comments.extend(CommentProcessor(FilterBadChars(str_io), font_size, stage_width, stage_height, font_face) )
     if progress_callback:
         progress_callback(len(input_files), len(input_files))
     comments.sort()
@@ -795,12 +881,22 @@ def main():
     parser.add_argument('-o', '--output', metavar=_('OUTPUT'), help=_('Output file'))
     parser.add_argument('-s', '--size', metavar=_('WIDTHxHEIGHT'), required=True, help=_('Stage size in pixels'))
     parser.add_argument('-fn', '--font', metavar=_('FONT'), help=_('Specify font face [default: %s]') % _('(FONT) sans-serif')[7:], default=_('(FONT) sans-serif')[7:])
-    parser.add_argument('-fs', '--fontsize', metavar=_('SIZE'), help=(_('Default font size [default: %s]') % 25), type=float, default=25.0)
-    parser.add_argument('-a', '--alpha', metavar=_('ALPHA'), help=_('Text opacity'), type=float, default=1.0)
+    parser.add_argument('-fs', '--fontsize', metavar=_('SIZE'), help=(_('Default font size [default: %s]  * NiconicoHtml5\'s fontsize cannot be changed.') % 25), type=float, default=25.0)
+    parser.add_argument('-a', '--alpha', metavar=_('ALPHA'), help=_('Text opacity 0.01-1 [default:1.0]'), type=float, default=1.0)
     parser.add_argument('-dm', '--duration-marquee', metavar=_('SECONDS'), help=_('Duration of scrolling comment display [default: %s]') % 5, type=float, default=5.0)
     parser.add_argument('-ds', '--duration-still', metavar=_('SECONDS'), help=_('Duration of still comment display [default: %s]') % 5, type=float, default=5.0)
+#     OutlineColor default &H00000000
+#     BackColour default &H00000000
+#     Bold -1 or 0
+#     BorderStyle 1 or 3
+#     Outline 	0-4px default 1px
+#     Shadow   0-4px default 0px
+    parser.add_argument('-b', '--bold', metavar=_('BOLD'), help=_('Yes: -1 or Not: 0 [default: 0]'), type=int, default=0)
+    parser.add_argument('-bs', '--borderstyle', metavar=_('BORDERSTYLE'), help=_('Outline + shadow:1 or Opaque box:3 [default: 1]'), type=int, default=1)
+    parser.add_argument('-ol', '--outline', metavar=_('OUTLINE'), help=_('outline 0-4 px [default:1.0]'), type=float, default=1.0)
+    parser.add_argument('-sd', '--shadow', metavar=_('SHADOW'), help=_('shadow 0-4 px [default: 0.0]'), type=float, default=0.0)
     parser.add_argument('-fl', '--filter', help=_('Regular expression to filter comments'))
-    parser.add_argument('-p', '--protect', metavar=_('HEIGHT'), help=_('Reserve blank on the bottom of the stage'), type=int, default=0)
+    parser.add_argument('-p', '--protect', metavar=_('HEIGHT'), help=_('Reserve blank on the bottom of the stage [default 0]'), type=int, default=0)
     parser.add_argument('-r', '--reduce', action='store_true', help=_('Reduce the amount of comments if stage is full'))
     parser.add_argument('file', metavar=_('FILE'), nargs='+', help=_('Comment file to be processed'))
     args = parser.parse_args()
@@ -810,8 +906,7 @@ def main():
         height = int(height)
     except ValueError:
         raise ValueError(_('Invalid stage size: %r') % args.size)
-    Danmaku2ASS(args.file, args.format, args.output, width, height, args.protect, args.font, args.fontsize, args.alpha, args.duration_marquee, args.duration_still, args.filter, args.reduce)
-
+    Danmaku2ASS(args.file, args.format, args.output, width, height, args.protect, args.font, args.fontsize, args.alpha, args.duration_marquee, args.duration_still, args.bold, args.borderstyle, args.outline, args.shadow, args.filter, args.reduce)
 
 if __name__ == '__main__':
     main()
