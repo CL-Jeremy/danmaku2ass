@@ -21,6 +21,8 @@ Installing
 You may install `danmaku2ass` with the Makefile provided.
 
 ```sh
+python -m pip install --upgrade pip
+pip install emoji --upgrade
 make
 make install
 ```
@@ -34,6 +36,11 @@ Example usage
 
 ```sh
 ./danmaku2ass -o foo.ass -s 1920x1080 -fn "MS PGothic" -fs 48 -a 0.8 -dm 5 -ds 5 foo.xml
+```
+
+ニコニコ動画
+```sh
+danmaku2ass.py -o "foo.ass" -f NiconicoHtml5 -s 960x540 -fn "MS PGothic" -a 1 -dm 8 -ds 3 -b -1 -bs 1 -ol 0 -sd 1 "foo.xml"
 ```
 
 Name the output file with same basename but different extension (.ass) as the video. Put them into the same directory and most media players will automatically load them. For MPlayer, you will have to specify `-ass` option.
@@ -89,12 +96,21 @@ optional arguments:
                         Specify font face [default: sans-serif]
   -fs SIZE, --fontsize SIZE
                         Default font size [default: 25]
+                        * NiconicoHtml5's fontsize cannot be changed
   -a ALPHA, --alpha ALPHA
-                        Text opacity
+                        Text opacity 0.01-1 [default:1.0]
   -dm SECONDS, --duration-marquee SECONDS
                         Duration of scrolling comment display [default: 5]
   -ds SECONDS, --duration-still SECONDS
                         Duration of still comment display [default: 5]
+  -b BOLD, --bold BOLD
+                        Yes: -1 or Not: 0 [default: 0]
+  -bs BORDERSTYLE, --borderstyle BORDERSTYLE
+                        Outline + shadow:1 or Opaque box:3 [default: 1]
+  -ol OUTLINE, --OUTLINE                        
+                        outline 0-4 px [default:1.0]
+  -sd SHADOW, --SHADOW
+                        shadow 0-4 px [default: 0.0]
   -fl FILTER, --filter FILTER
                         Regular expression to filter comments
   -p HEIGHT, --protect HEIGHT
