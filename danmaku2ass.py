@@ -95,25 +95,6 @@ def ProbeCommentFormat(f):
             return 'Niconico'  # Himawari Douga, with the same file format as Niconico Douga
 
 
-def is_japanese(string):
-    string = re.sub('\s','',string)
-    for ch in string:
-        name = unicodedata.name(ch) 
-        if "CJK UNIFIED" in name \
-        or "HIRAGANA" in name \
-        or "KATAKANA" in name:
-            return True
-    return False
-
-
-def is_emoji(string):
-    string = re.sub('\s','',string)
-    for ch in string:
-        if ch in emoji.UNICODE_EMOJI:
-            return True
-    return False
-
-
 #
 # ReadComments**** protocol
 #
@@ -172,7 +153,43 @@ def ReadCommentsNiconico(f, fontsize, stage_width, stage_height, font_face):
             logging.warning(_('Invalid comment: %s') % comment.toxml())
             continue
 
-            
+
+def is_japanese(string):
+    string = re.sub('\s','',string)
+    for ch in string:
+        name = unicodedata.name(ch) 
+        if "CJK UNIFIED" in name \
+        or "HIRAGANA LETTER" in name \
+        or "KATAKANA LETTER" in name:
+            return True
+    return False
+
+def is_mojibake(string):
+    string = re.sub('\s','',string)
+    for ch in string:
+        name = unicodedata.name(ch) 
+        if "CJK UNIFIED" in name \
+        or "HIRAGANA LETTER" in name \
+        or "KATAKANA LETTER" in name:
+            return True
+    for ch in string:
+        name = unicodedata.name(ch) 
+        u = format(ord(ch))
+        if int(u) > 10000:
+            return True
+    return False
+
+def is_emoji(string):
+    string = re.sub('\s','',string)
+    for ch in string:
+        if ch in emoji.UNICODE_EMOJI:
+            return True
+    return False
+
+def is_space(string):
+    string = re.sub('\u2004','\u0020',string) # 1/3 SPACE
+    return string
+
 def ReadCommentsNiconicoHtml5(f, fontsize, stage_width, stage_height, font_face):
     NiconicoColorMap = {'red': 0xff0000, 'pink': 0xff8080, 'orange': 0xffcc00, 'yellow': 0xffff00, 'green': 0x00ff00, 'cyan': 0x00ffff, 'blue': 0x0000ff, 'purple': 0xc000ff, 'black': 0x000000, 'niconicowhite': 0xcccc99, 'white2': 0xcccc99, 'truered': 0xcc0033, 'red2': 0xcc0033, 'passionorange': 0xff6600, 'orange2': 0xff6600, 'madyellow': 0x999900, 'yellow2': 0x999900, 'elementalgreen': 0x00cc66, 'green2': 0x00cc66, 'marineblue': 0x33ffcc, 'blue2': 0x33ffcc, 'nobleviolet': 0x6633cc, 'purple2': 0x6633cc}
     dom = xml.dom.minidom.parse(f)
@@ -180,9 +197,12 @@ def ReadCommentsNiconicoHtml5(f, fontsize, stage_width, stage_height, font_face)
     for comment in comment_element:
         try:
             c = str(comment.childNodes[0].wholeText)
+            cc = c
             if c.startswith('/'):
                 continue  # ignore advanced comments
             pos = 0
+            is_ender = False
+            is_full = False
             color = 0xffffff
             if (is_japanese(c)) :
                 format_name = font_face
@@ -192,6 +212,7 @@ def ReadCommentsNiconicoHtml5(f, fontsize, stage_width, stage_height, font_face)
                 format_name = 'Arial'
             size = stage_width / 25.2631578947368421 # May not be accurate. 
             fontdimension = 'medium'
+            ｃ = is_space(c)
             for mailstyle in reversed(str(comment.getAttribute('mail')).split()):
                 if mailstyle == 'ue':
                     pos = 1
@@ -200,20 +221,35 @@ def ReadCommentsNiconicoHtml5(f, fontsize, stage_width, stage_height, font_face)
                 elif mailstyle == 'big':
                     fontdimension = 'big'
                     size = stage_width / 17.142857142857142857 # May not be accurate.
+                    if format_name == 'Yu Mincho':
+                        size = stage_width / 19.105 * 25.2631578947368421
                 elif mailstyle == 'small':
                     fontdimension = 'small'
                     size = stage_width / 36.923076923076923 # May not be accurate.
+                    if format_name == 'Yu Mincho':
+                        size = stage_width / 19.105 * 25.2631578947368421
                 elif mailstyle in NiconicoColorMap:
                     color = NiconicoColorMap[mailstyle]
+                elif mailstyle.startswith('#'):
+                    color = int(re.sub('#','0x',mailstyle), 16)
                 elif mailstyle == 'gothic':
                     format_name = 'MS Gothic'
                 elif mailstyle == 'mincho':
-                    format_name = 'Mincho'
-                #May not be accurate.
-                tkinter.Frame().destroy()  # Enough to initialize resources
-                while((tkFont.Font(family = format_name, size = int(size)).measure(c) > stage_width)and (pos != 0)):
-                    size = size - 1
-                    tkinter.Frame().destroy()
+                    format_name = 'Yu Mincho'
+                    size = stage_width / 19.105 # May not be accurate.
+                elif mailstyle == 'ender': #TODO
+                    is_ender = True
+                elif mailstyle == 'full': #TODO
+                    is_full = True
+            char_list = [cc[j] for j in range(len(cc)) if ord(cc[j]) in range(65536)]
+            cc='♡'
+            for j in char_list:
+                cc=cc+j
+            tkinter.Frame().destroy()  # Enough to initialize resources
+            #May not be accurate.
+            while((tkFont.Font(family = format_name, size = int(size)).measure(cc) > stage_width) and (pos != 0)):
+                size = size - 1
+                tkinter.Frame().destroy()
             yield (max(int(comment.getAttribute('vpos')), 0) * 0.01, int(comment.getAttribute('date')), int(comment.getAttribute('no')), c, pos, color, size, (c.count('\n') + 1.3) * size, CalculateLength(c) * size, format_name)
         except (AssertionError, AttributeError, IndexError, TypeError, ValueError):
             logging.warning(_('Invalid comment: %s') % comment.toxml())
@@ -387,7 +423,7 @@ def WriteCommentBilibiliPositioned(f, c, width, height, styleid):
         if c[5] != 0xffffff:
             styles.append('\\c&H%s&' % ConvertColor(c[5]))
             if c[5] == 0x000000:
-                styles.append('\\3c&HFFFFFF&')
+                styles.append('\\3c&HFFFFFF&\\4c&HFFFFFF&')
         if from_alpha == to_alpha:
             styles.append('\\alpha&H%02X' % from_alpha)
         elif (from_alpha, to_alpha) == (255, 0):
@@ -435,7 +471,7 @@ def WriteCommentAcfunPositioned(f, c, width, height, styleid):
         if color is not None:
             styles.append('\\c&H%s&' % ConvertColor(color))
             if color == 0x000000:
-                styles.append('\\3c&HFFFFFF&')
+                styles.append('\\3c&HFFFFFF&\\4c&HFFFFFF&')
         if alpha is not None:
             alpha = 255 - round(alpha * 255)
             styles.append('\\alpha&H%02X' % alpha)
@@ -606,7 +642,7 @@ def ProcessComments(comments, f, width, height, bottomReserved, fontface, fontsi
                 freerows = TestFreeRows(rows, i, row, width, height, bottomReserved, duration_marquee, duration_still)
                 if freerows >= i[7]:
                     MarkCommentRow(rows, i, row)
-                    WriteComment(f, i, row, width, height, bottomReserved, fontsize, duration_marquee, duration_still, styleid)
+                    WriteComment(f, i, row, width, height, bottomReserved, fontsize, duration_marquee, duration_still, styleid, outline)
                     break
                 else:
                     row += freerows or 1
@@ -614,7 +650,7 @@ def ProcessComments(comments, f, width, height, bottomReserved, fontface, fontsi
                 if not reduced:
                     row = FindAlternativeRow(rows, i, height, bottomReserved)
                     MarkCommentRow(rows, i, row)
-                    WriteComment(f, i, row, width, height, bottomReserved, fontsize, duration_marquee, duration_still, styleid)
+                    WriteComment(f, i, row, width, height, bottomReserved, fontsize, duration_marquee, duration_still, styleid, outline)
         elif i[4] == 'bilipos':
             WriteCommentBilibiliPositioned(f, i, width, height, styleid)
         elif i[4] == 'acfunpos':
@@ -697,7 +733,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 
         '''Style: %(styleid)s, %(fontface)s, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, %(bold)s, 0, 0, 0, 100, 100, 0.00, 0.00, %(borderstyle)s, %(outline).1f, %(shadow).1f, 7, 0, 0, 0, 0
 Style: Danmaku2ASS_MS Gothic, MS Gothic, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, %(bold)s, 0, 0, 0, 100, 100, 0.00, 0.00, %(borderstyle)s, %(outline).1f, %(shadow).1f, 7, 0, 0, 0, 0
-Style: Danmaku2ASS_Mincho, Mincho, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, %(bold)s, 0, 0, 0, 100, 100, 0.00, 0.00, %(borderstyle)s, %(outline).1f, %(shadow).1f, 7, 0, 0, 0, 0
+Style: Danmaku2ASS_Yu Mincho, Yu Mincho, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, %(bold)s, 0, 0, 0, 100, 100, 0.00, 0.00, %(borderstyle)s, %(outline).1f, %(shadow).1f, 7, 0, 0, 0, 0
 Style: Danmaku2ASS_Arial, Arial, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, %(bold)s, 0, 0, 0, 100, 100, 0.00, 0.00, %(borderstyle)s, %(outline).1f, %(shadow).1f, 7, 0, 0, 0, 0
 Style: Danmaku2ASS_Segoe UI Emoji, Segoe UI Emoji, %(fontsize).0f, &H%(alpha)02XFFFFFF, &H%(alpha)02XFFFFFF, &H%(alpha)02X000000, &H%(alpha)02X000000, %(bold)s, 0, 0, 0, 100, 100, 0.00, 0.00, %(borderstyle)s, %(outline).1f, %(shadow).1f, 7, 0, 0, 0, 0
 [Events]
@@ -705,7 +741,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 ''' % {'width': width, 'height': height, 'fontface': fontface, 'fontsize': fontsize, 'alpha': 255 - round(alpha * 255), 'outline': max(fontsize / 25.0, 1), 'styleid': styleid, 'bold': bold, 'borderstyle': borderstyle, 'outline':outline, 'shadow':shadow }
     )
 
-def WriteComment(f, c, row, width, height, bottomReserved, fontsize, duration_marquee, duration_still, styleid):
+def WriteComment(f, c, row, width, height, bottomReserved, fontsize, duration_marquee, duration_still, styleid, outline):
     text = ASSEscape(c[3])
     styles = []
     if c[4] == 1:
@@ -722,10 +758,12 @@ def WriteComment(f, c, row, width, height, bottomReserved, fontsize, duration_ma
         duration = duration_marquee
     if not (-1 < c[6] - fontsize < 1):
         styles.append('\\fs%.0f' % c[6])
+    if outline > 0:
+        styles.append('\\blur2.5') #be or blur
     if c[5] != 0xffffff:
         styles.append('\\c&H%s&' % ConvertColor(c[5]))
         if c[5] == 0x000000:
-            styles.append('\\3c&HFFFFFF&')
+            styles.append('\\3c&HFFFFFF&\\4c&HFFFFFF&')
     styleid = 'Danmaku2ASS_'+c[9]	
 #add, zero width non-joiner, \u200C
     f.write('Dialogue: 2,%(start)s,%(end)s,%(styleid)s,,0000,0000,0000,,{%(styles)s}\u200C%(text)s\u200C\n' % {'start': ConvertTimestamp(c[0]), 'end': ConvertTimestamp(c[0] + duration), 'styles': ''.join(styles), 'text': text, 'styleid': styleid})
