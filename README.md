@@ -40,7 +40,7 @@ Example usage
 
 ニコニコ動画
 ```sh
-danmaku2ass.py -o "foo.ass" -f NiconicoHtml5 -s 960x540 -fn "MS PGothic" -a 1 -dm 8 -ds 3 -b -1 -bs 1 -ol 0 -sd 1 "foo.xml"
+danmaku2ass.py -o "foo.ass" -f NiconicoHtml5 -s 960x540 -fn "MS PGothic" -a 1 -dm 8 -ds 3 -b -1 -bs 1 -ol 1 -sd 0 "foo.xml"
 ```
 
 Name the output file with same basename but different extension (.ass) as the video. Put them into the same directory and most media players will automatically load them. For MPlayer, you will have to specify `-ass` option.
