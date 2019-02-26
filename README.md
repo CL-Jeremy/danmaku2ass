@@ -77,7 +77,8 @@ Command line reference
 ```
 usage: danmaku2ass.py [-h] [-f FORMAT] [-o OUTPUT] -s WIDTHxHEIGHT [-fn FONT]
                       [-fs SIZE] [-a ALPHA] [-dm SECONDS] [-ds SECONDS]
-                      [-fl FILTER] [-p HEIGHT] [-r]
+                      [-b BOLD] [-bs BORDERSTYLE] [-ol OUTLINE] [-sd SHADOW]
+                      [-fl FILTER] [-p HEIGHT] [-r] [-ss SECONDS]
                       FILE [FILE ...]
 
 positional arguments:
@@ -116,6 +117,8 @@ optional arguments:
   -p HEIGHT, --protect HEIGHT
                         Reserve blank on the bottom of the stage
   -r, --reduce          Reduce the amount of comments if stage is full
+  -ss SECONDS, --seekoffset SECONDS
+                        Seek to the target starting time [default 0]
 ```
 
 FAQ
